@@ -4,6 +4,7 @@ import java.text.DecimalFormat;
 import java.util.Collection;
 
 import org.bukkit.Material;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -17,6 +18,7 @@ import org.bukkit.potion.PotionType;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 
 public final class DeathRecap extends JavaPlugin implements Listener
 {
@@ -56,8 +58,8 @@ public final class DeathRecap extends JavaPlugin implements Listener
         final HoverEvent<Component> hoverevent = HoverEvent.showText(this.getRecap(event.getPlayer()));
         final HoverEvent<Component> hoverevent1 = HoverEvent.showText(this.getRecap(event.getPlayer().getKiller()));
 
-        final Component built = Component.text("Battle recap: ", NamedTextColor.GRAY)
-                .append(Component.text(event.getPlayer().getName(), NamedTextColor.LIGHT_PURPLE).hoverEvent(hoverevent))
+        final Component built = Component.text("BATTLE RECAP ! ", NamedTextColor.GREEN).decoration(TextDecoration.BOLD, true)
+                .append(Component.text(event.getPlayer().getName(), NamedTextColor.LIGHT_PURPLE).decoration(TextDecoration.BOLD, false).hoverEvent(hoverevent))
                 .append(Component.text(" - ", NamedTextColor.GRAY))
                 .append(Component.text(event.getPlayer().getKiller().getName(), NamedTextColor.LIGHT_PURPLE).hoverEvent(hoverevent1));
 
@@ -71,7 +73,9 @@ public final class DeathRecap extends JavaPlugin implements Listener
             return "Missing";
         }
 
-        return String.valueOf(itemStack.getType().getMaxDurability() - ((Damageable) itemStack.getItemMeta()).getDamage());
+        final short max = itemStack.getType().getMaxDurability();
+
+        return String.valueOf(max - ((Damageable) itemStack.getItemMeta()).getDamage() + " / " + max);
     }
 
     private final PotionType getPotionType(ItemStack itemStack)
@@ -95,8 +99,15 @@ public final class DeathRecap extends JavaPlugin implements Listener
         final long fire = splash.stream().filter(i -> this.getPotionType(i).equals(PotionType.FIRE_RESISTANCE)).count();
         final long fire1 = drink.stream().filter(i -> this.getPotionType(i).equals(PotionType.FIRE_RESISTANCE)).count();
 
+        final String s = (new DecimalFormat("0.00")).format(player.getHealth());
+        final String s1 = (new DecimalFormat("0.00")).format(player.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue());
+
         return Component.text(player.getName() + "'s recap", NamedTextColor.LIGHT_PURPLE)
-                .append(Component.text("\n\u2764 " + (new DecimalFormat("0.00")).format(player.getHealth())))
+                .append(Component.text("\n\u2764 ", NamedTextColor.RED))
+                .append(Component.text(s, NamedTextColor.WHITE))
+                .append(Component.text(" / ", NamedTextColor.GRAY))
+                .append(Component.text("\u2764 ", NamedTextColor.RED))
+                .append(Component.text(s1, NamedTextColor.WHITE))
                 .append(Component.text("\n\n< -- Armor -- >", NamedTextColor.DARK_AQUA))
                 .append(Component.text("\nHelmet: " + helmet, NamedTextColor.GRAY))
                 .append(Component.text("\nChestplate: " + chestplate, NamedTextColor.GRAY))
