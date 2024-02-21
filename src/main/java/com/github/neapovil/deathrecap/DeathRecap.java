@@ -1,9 +1,8 @@
 package com.github.neapovil.deathrecap;
 
 import java.text.DecimalFormat;
-import java.util.Collection;
+import java.util.function.Function;
 
-import org.bukkit.Material;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -13,16 +12,13 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.potion.PotionType;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.event.HoverEvent;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 
 public final class DeathRecap extends JavaPlugin implements Listener
 {
     private static DeathRecap instance;
+    private final MiniMessage miniMessage = MiniMessage.miniMessage();
 
     @Override
     public void onEnable()
@@ -37,7 +33,7 @@ public final class DeathRecap extends JavaPlugin implements Listener
     {
     }
 
-    public static DeathRecap getInstance()
+    public static DeathRecap instance()
     {
         return instance;
     }
@@ -45,77 +41,95 @@ public final class DeathRecap extends JavaPlugin implements Listener
     @EventHandler
     private void playerDeath(PlayerDeathEvent event)
     {
-        if (event.getPlayer().getKiller() == null)
-        {
-            return;
-        }
-
         if (!(event.getPlayer().getKiller() instanceof Player))
         {
             return;
         }
 
-        final HoverEvent<Component> hoverevent = HoverEvent.showText(this.getRecap(event.getPlayer()));
-        final HoverEvent<Component> hoverevent1 = HoverEvent.showText(this.getRecap(event.getPlayer().getKiller()));
+        final String hover = this.recap(event.getPlayer());
+        final String hover1 = this.recap(event.getPlayer().getKiller());
 
-        final Component built = Component.text("BATTLE RECAP ! ", NamedTextColor.GREEN).decoration(TextDecoration.BOLD, true)
-                .append(Component.text(event.getPlayer().getName(), NamedTextColor.LIGHT_PURPLE).decoration(TextDecoration.BOLD, false).hoverEvent(hoverevent))
-                .append(Component.text(" - ", NamedTextColor.GRAY))
-                .append(Component.text(event.getPlayer().getKiller().getName(), NamedTextColor.LIGHT_PURPLE).hoverEvent(hoverevent1));
+        final String string = "<green><bold>BATTLE RECAP ! <light_purple><!bold><hover:show_text:\"%s\">%s</hover> <gray>vs <light_purple><hover:show_text:\"%s\">%s</hover>"
+                .formatted(
+                        hover,
+                        event.getPlayer().getName(),
+                        hover1,
+                        event.getPlayer().getKiller().getName());
 
-        this.getServer().broadcast(built);
+        this.getServer().broadcast(this.miniMessage.deserialize(string));
     }
 
-    private final String getDurability(ItemStack itemStack)
+    private String recap(Player player)
     {
-        if (itemStack == null)
+        final StringBuilder stringbuilder = new StringBuilder();
+
+        stringbuilder.append("<light_purple>" + player.getName() + "'s recap");
+
+        final String health = (new DecimalFormat("0.00")).format(player.getHealth());
+        final String maxhealth = (new DecimalFormat("0.00")).format(player.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue());
+
+        stringbuilder.append("\n<red>\u2764<white>%s <gray>/ <red>\u2764<white>%s".formatted(health, maxhealth));
+        stringbuilder.append("\n\n<dark_aqua><underlined>Armor</underlined>");
+
+        final Function<ItemStack, String> durability = itemStack -> {
+            if (itemStack == null)
+            {
+                return "N/a";
+            }
+
+            final short max = itemStack.getType().getMaxDurability();
+
+            return String.valueOf(max - ((Damageable) itemStack.getItemMeta()).getDamage() + " / " + max);
+        };
+
+        final String helmet = durability.apply(player.getInventory().getHelmet());
+        final String chestplate = durability.apply(player.getInventory().getChestplate());
+        final String leggings = durability.apply(player.getInventory().getLeggings());
+        final String boots = durability.apply(player.getInventory().getBoots());
+
+        stringbuilder.append("\n<gray>Helmet: " + helmet);
+        stringbuilder.append("\n<gray>Chestplate: " + chestplate);
+        stringbuilder.append("\n<gray>Leggings: " + leggings);
+        stringbuilder.append("\n<gray>Boots: " + boots);
+
+        stringbuilder.append("\n\n<dark_aqua><underlined>Potions</underlined>");
+
+        long instantheal = 0;
+        long speed = 0;
+        long fire = 0;
+
+        for (ItemStack i : player.getInventory())
         {
-            return "Missing";
+            if (i == null)
+            {
+                continue;
+            }
+
+            if (!(i.getItemMeta() instanceof PotionMeta potionmeta))
+            {
+                continue;
+            }
+
+            switch (potionmeta.getBasePotionData().getType())
+            {
+            case INSTANT_HEAL:
+                instantheal++;
+                break;
+            case SPEED:
+                speed++;
+                break;
+            case FIRE_RESISTANCE:
+                fire++;
+                break;
+            default:
+                break;
+            }
         }
 
-        final short max = itemStack.getType().getMaxDurability();
+        stringbuilder.append("\n<gray>Instant Heal: " + instantheal);
+        stringbuilder.append("\n<gray>Speed: " + speed);
+        stringbuilder.append("\n<gray>Fire Resistance: " + fire);
 
-        return String.valueOf(max - ((Damageable) itemStack.getItemMeta()).getDamage() + " / " + max);
-    }
-
-    private final PotionType getPotionType(ItemStack itemStack)
-    {
-        return ((PotionMeta) itemStack.getItemMeta()).getBasePotionData().getType();
-    }
-
-    private final Component getRecap(Player player)
-    {
-        final String helmet = this.getDurability(player.getInventory().getHelmet());
-        final String chestplate = this.getDurability(player.getInventory().getChestplate());
-        final String leggings = this.getDurability(player.getInventory().getLeggings());
-        final String boots = this.getDurability(player.getInventory().getBoots());
-
-        final Collection<? extends ItemStack> splash = player.getInventory().all(Material.SPLASH_POTION).values();
-        final Collection<? extends ItemStack> drink = player.getInventory().all(Material.POTION).values();
-
-        final long instantheal = splash.stream().filter(i -> this.getPotionType(i).equals(PotionType.INSTANT_HEAL)).count();
-        final long speed = splash.stream().filter(i -> this.getPotionType(i).equals(PotionType.SPEED)).count();
-        final long speed1 = drink.stream().filter(i -> this.getPotionType(i).equals(PotionType.SPEED)).count();
-        final long fire = splash.stream().filter(i -> this.getPotionType(i).equals(PotionType.FIRE_RESISTANCE)).count();
-        final long fire1 = drink.stream().filter(i -> this.getPotionType(i).equals(PotionType.FIRE_RESISTANCE)).count();
-
-        final String s = (new DecimalFormat("0.00")).format(player.getHealth());
-        final String s1 = (new DecimalFormat("0.00")).format(player.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue());
-
-        return Component.text(player.getName() + "'s recap", NamedTextColor.LIGHT_PURPLE)
-                .append(Component.text("\n\u2764 ", NamedTextColor.RED))
-                .append(Component.text(s, NamedTextColor.WHITE))
-                .append(Component.text(" / ", NamedTextColor.GRAY))
-                .append(Component.text("\u2764 ", NamedTextColor.RED))
-                .append(Component.text(s1, NamedTextColor.WHITE))
-                .append(Component.text("\n\n< -- Armor -- >", NamedTextColor.DARK_AQUA))
-                .append(Component.text("\nHelmet: " + helmet, NamedTextColor.GRAY))
-                .append(Component.text("\nChestplate: " + chestplate, NamedTextColor.GRAY))
-                .append(Component.text("\nLeggings: " + leggings, NamedTextColor.GRAY))
-                .append(Component.text("\nBoots: " + boots, NamedTextColor.GRAY))
-                .append(Component.text("\n\n< -- Potions -- >", NamedTextColor.DARK_AQUA))
-                .append(Component.text("\nInstant Heal: " + instantheal, NamedTextColor.GRAY))
-                .append(Component.text("\nSpeed: " + (speed + speed1), NamedTextColor.GRAY))
-                .append(Component.text("\nFire Resistance: " + (fire + fire1), NamedTextColor.GRAY));
+        return stringbuilder.toString();
     }
 }

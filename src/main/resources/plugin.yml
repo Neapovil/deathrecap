@@ -1,6 +1,6 @@
 name: DeathRecap
 main: com.github.neapovil.deathrecap.DeathRecap
 version: 1.0.0
-api-version: 1.13
+api-version: 1.19
 author: Neapovil
 website: https://github.com/neapovil/deathrecap
